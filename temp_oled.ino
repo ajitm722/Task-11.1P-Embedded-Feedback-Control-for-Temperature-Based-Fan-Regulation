@@ -12,7 +12,7 @@ namespace sensor
 {
     constexpr uint8_t kDataPin{2};       // Pin connected to the DHT11 sensor
     constexpr auto kSensorType{DHT11};   // Type of DHT sensor
-    constexpr uint8_t kIntervalMs{5000}; // Interval between sensor readings in milliseconds
+    constexpr uint8_t kIntervalMs{2000}; // Interval between sensor readings in milliseconds
 
     DHT dht{kDataPin, kSensorType}; // Initialize DHT sensor object
 
@@ -164,31 +164,25 @@ void setup()
 
 void loop()
 {
-    static unsigned long lastReadTime{0};      // Store last sensor read time
-    const unsigned long currentTime{millis()}; // Get current time in milliseconds
+    const float temperature{sensor::readTemperature()}; // Read temperature from sensor
 
-    if (currentTime - lastReadTime >= sensor::kIntervalMs) // Check if interval has passed
+    Serial.print(F("Temperature: ")); // Print temperature to Serial
+    if (std::isnan(temperature))      // Check if reading is invalid
     {
-        lastReadTime = currentTime; // Update last read time
-
-        const float temperature = sensor::readTemperature(); // Read temperature from sensor
-
-        Serial.print(F("Temperature: ")); // Print temperature to Serial
-        if (std::isnan(temperature))      // Check if reading is invalid
-        {
-            Serial.println(F("Read failed")); // Print error message
-        }
-        else
-        {
-            Serial.print(temperature); // Print valid temperature
-            Serial.println(F(" °C"));  // Print unit
-        }
-
-        display::showTemperature(temperature); // Display temperature on OLED
-
-        if (!std::isnan(temperature)) // Send temperature to server if valid
-        {
-            network::sendTemperature(temperature);
-        }
+        Serial.println(F("Read failed")); // Print error message
     }
+    else
+    {
+        Serial.print(temperature); // Print valid temperature
+        Serial.println(F(" °C"));  // Print unit
+    }
+
+    display::showTemperature(temperature); // Display temperature on OLED
+
+    if (!std::isnan(temperature)) // Send temperature to server if valid
+    {
+        network::sendTemperature(temperature);
+    }
+
+    delay(sensor::kIntervalMs); // Wait for the specified interval
 }
