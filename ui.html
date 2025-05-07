@@ -6,6 +6,7 @@
     <title>Fan Control Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
+      /* Basic styling for the dashboard */
       body {
         font-family: Arial, sans-serif;
         margin: 20px;
@@ -30,43 +31,47 @@
   <body>
     <h1>Fan Control Dashboard</h1>
     <p>Set the target temperature (°C):</p>
+    <!-- Input field to set the target temperature -->
     <input type="number" id="setpoint" value="24" step="0.1" />
+    <!-- Button to update the setpoint -->
     <button onclick="updateSetpoint()">Update Setpoint</button>
     <p id="status"></p>
     <div id="chart-container">
+      <!-- Canvas element for the temperature chart -->
       <canvas id="temperatureChart"></canvas>
     </div>
 
     <script>
+      // Initialize the Chart.js chart
       const ctx = document.getElementById("temperatureChart").getContext("2d");
       const temperatureChart = new Chart(ctx, {
-        type: "line",
+        type: "line", // Line chart
         data: {
-          labels: [],
+          labels: [], // Time labels for the x-axis
           datasets: [
             {
-              label: "Temperature (°C)",
+              label: "Temperature (°C)", // Dataset for temperature readings
               data: [],
-              borderColor: "blue",
+              borderColor: "blue", // Line color for temperature
               fill: false,
             },
             {
-              label: "Setpoint (°C)",
+              label: "Setpoint (°C)", // Dataset for the setpoint
               data: [],
-              borderColor: "red",
-              borderDash: [5, 5],
+              borderColor: "red", // Line color for setpoint
+              borderDash: [5, 5], // Dashed line for setpoint
               fill: false,
             },
           ],
         },
         options: {
-          responsive: true,
+          responsive: true, // Make the chart responsive
           scales: {
             x: {
-              title: { display: true, text: "Time" },
+              title: { display: true, text: "Time" }, // Label for the x-axis
             },
             y: {
-              title: { display: true, text: "Temperature (°C)" },
+              title: { display: true, text: "Temperature (°C)" }, // Label for the y-axis
             },
           },
         },
@@ -74,6 +79,7 @@
 
       let currentSetpoint = 24; // Default setpoint value
 
+      // Function to update the setpoint on the server
       function updateSetpoint() {
         const setpoint = parseFloat(document.getElementById("setpoint").value);
         fetch("/setpoint", {
@@ -83,30 +89,31 @@
         })
           .then((response) => response.text())
           .then((data) => {
-            document.getElementById("status").innerText = data;
+            document.getElementById("status").innerText = data; // Display server response
             currentSetpoint = setpoint; // Update the current setpoint
             updateSetpointLine(); // Update the setpoint line on the graph
           })
           .catch((error) => {
-            document.getElementById("status").innerText = `Error: ${error}`;
+            document.getElementById("status").innerText = `Error: ${error}`; // Display error message
           });
       }
 
+      // Function to update the setpoint line on the chart
       function updateSetpointLine() {
-        // Update the setpoint dataset to be a horizontal line
-        const labels = temperatureChart.data.labels;
+        const labels = temperatureChart.data.labels; // Get the current labels
         temperatureChart.data.datasets[1].data = labels.map(
-          () => currentSetpoint
+          () => currentSetpoint // Set the setpoint value for all labels
         );
-        temperatureChart.update();
+        temperatureChart.update(); // Refresh the chart
       }
 
+      // Function to fetch the latest temperature data from the server
       function fetchTemperatureData() {
         fetch("/latest-temp")
           .then((response) => response.json())
           .then((data) => {
-            const temperature = data.temperature;
-            const currentTime = new Date().toLocaleTimeString();
+            const temperature = data.temperature; // Extract temperature from response
+            const currentTime = new Date().toLocaleTimeString(); // Get the current time
 
             // Add the new temperature and time to the chart
             temperatureChart.data.labels.push(currentTime);
@@ -117,19 +124,20 @@
 
             // Limit the number of points on the graph to avoid overcrowding
             if (temperatureChart.data.labels.length > 20) {
-              temperatureChart.data.labels.shift();
-              temperatureChart.data.datasets[0].data.shift();
-              temperatureChart.data.datasets[1].data.shift();
+              temperatureChart.data.labels.shift(); // Remove the oldest label
+              temperatureChart.data.datasets[0].data.shift(); // Remove the oldest temperature
+              temperatureChart.data.datasets[1].data.shift(); // Remove the oldest setpoint
             }
 
-            temperatureChart.update();
+            temperatureChart.update(); // Refresh the chart
           })
           .catch((error) => {
-            console.error("Error fetching temperature data:", error);
+            console.error("Error fetching temperature data:", error); // Log errors
           });
       }
 
-      setInterval(fetchTemperatureData, 2000); // Fetch data every 2 seconds
+      // Fetch temperature data every 2 seconds
+      setInterval(fetchTemperatureData, 2000);
     </script>
   </body>
 </html>

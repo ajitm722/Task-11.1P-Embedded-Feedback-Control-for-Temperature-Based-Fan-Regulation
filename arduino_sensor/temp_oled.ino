@@ -10,9 +10,9 @@
 // ===========================
 namespace sensor
 {
-    constexpr uint8_t kDataPin{2};       // Pin connected to the DHT11 sensor
-    constexpr auto kSensorType{DHT11};   // Type of DHT sensor
-    constexpr uint8_t kIntervalMs{2000}; // Interval between sensor readings in milliseconds
+    constexpr uint8_t kDataPin{2};        // Pin connected to the DHT11 sensor
+    constexpr auto kSensorType{DHT11};    // Type of DHT sensor
+    constexpr uint16_t kIntervalMs{2000}; // Interval between sensor readings in milliseconds
 
     DHT dht{kDataPin, kSensorType}; // Initialize DHT sensor object
 
