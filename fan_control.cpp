@@ -9,6 +9,7 @@
 #include <fmt/core.h>
 #include "pid.hpp"
 #include <csignal> // For signal handling
+#include <sstream> // For serving HTML content
 
 // PWM Control Namespace
 namespace pwm
@@ -165,6 +166,102 @@ namespace timer_util
     }
 }
 
+// Namespace for server utilities
+namespace server_util
+{
+    float latestTemperature = 0.0f; // Store the most recent temperature value
+
+    /**
+     * @brief Starts the HTTP server to handle requests.
+     *
+     * - Serves the HTML page for the user interface.
+     * - Handles `/setpoint` POST requests to update the PID setpoint.
+     * - Handles `/temp` POST requests to process temperature data.
+     * - Provides `/latest-temp` endpoint to serve the most recent temperature value.
+     *
+     * @param pid Reference to the PID controller.
+     * @param kPwmPeriod PWM period in nanoseconds.
+     */
+    void startServer(PID &pid, const float kPwmPeriod)
+    {
+        httplib::Server server;
+        std::chrono::steady_clock::time_point lastTime{std::chrono::steady_clock::now()};
+
+        // Serve the HTML page for the user interface
+        server.Get("/", [](const httplib::Request &, httplib::Response &res)
+                   {
+            std::ifstream htmlFile("ui.html"); // Use relative path
+            if (htmlFile)
+            {
+                std::stringstream buffer;
+                buffer << htmlFile.rdbuf();
+                res.set_content(buffer.str(), "text/html");
+            }
+            else
+            {
+                res.status = 500;
+                res.set_content("Error: Unable to load UI page.", "text/plain");
+            } });
+
+        // Endpoint to update the PID setpoint
+        server.Post("/setpoint", [&pid](const httplib::Request &req, httplib::Response &res)
+                    {
+            try
+            {
+                auto json = nlohmann::json::parse(req.body);
+                float newSetpoint{json.at("setpoint").get<float>()}; // Parse new setpoint
+                pid.setSetpoint(newSetpoint);
+
+                fmt::print("Setpoint updated to: {:.2f} °C\n", newSetpoint);
+                res.set_content("Setpoint updated successfully.", "text/plain");
+            }
+            catch (const std::exception &e)
+            {
+                res.status = 400;
+                res.set_content(fmt::format("Error: {}", e.what()), "text/plain");
+            } });
+
+        // Endpoint to handle temperature data and compute PID output
+        server.Post("/temp", [&pid, &lastTime, kPwmPeriod](const httplib::Request &req, httplib::Response &res)
+                    {
+            try
+            {
+                auto json = nlohmann::json::parse(req.body);
+                float temperature{json.at("temperature").get<float>()}; // Explicitly parse as float
+
+                float dt{static_cast<float>(timer_util::secondsSince(lastTime))}; // Convert elapsed time to float
+                lastTime = std::chrono::steady_clock::now();
+
+                // Compute the PID output
+                float pidOutput{pid.compute(temperature, dt)};
+
+                // Convert PID output (0–100%) to duty cycle in nanoseconds
+                uint32_t dutyNs{static_cast<uint32_t>((pidOutput / 100.0f) * kPwmPeriod)};
+                pwm::setDutyCycle(dutyNs);
+
+                // Update the latest temperature value
+                latestTemperature = temperature;
+
+                fmt::print("Received Temp: {:.2f} °C | PID Out: {:.2f} | Fan Duty: {:.0f}%\n",
+                           temperature, pidOutput, pidOutput);
+
+                res.set_content("OK", "text/plain");
+            }
+            catch (const std::exception &e)
+            {
+                res.status = 400;
+                res.set_content(fmt::format("Error: {}", e.what()), "text/plain");
+            } });
+
+        // Endpoint to get the latest temperature value
+        server.Get("/latest-temp", [](const httplib::Request &, httplib::Response &res)
+                   { res.set_content(fmt::format("{{\"temperature\": {:.2f}}}", latestTemperature), "application/json"); });
+
+        fmt::print("HTTP Server running on port 8000...\n");
+        server.listen("0.0.0.0", 8000);
+    }
+}
+
 int main()
 {
     // Register signal handlers for cleanup
@@ -175,49 +272,10 @@ int main()
 
     // PID initialized with Kp, Ki, Kd and output clamp [0, 100]
     PID pid{4.0f, 0.3f, 0.8f, 0.0f, 100.0f}; // Adjusted gains for better response
-    pid.setSetpoint(24.0f);                  // Target temperature in Celsius
+    pid.setSetpoint(24.0f);                  // Default target temperature in Celsius
 
-    std::chrono::steady_clock::time_point lastTime{std::chrono::steady_clock::now()};
-
-    httplib::Server server;
-
-    /**
-     * @brief Server logic explanation:
-     * - The server listens for HTTP POST requests on the `/temp` endpoint.
-     * - Each request must contain a JSON body with a "temperature" field.
-     * - The server:
-     *   1. Parses the temperature value from the request.
-     *   2. Computes the PID output based on the temperature and elapsed time (`dt`).
-     *   3. Converts the PID output to a PWM duty cycle and updates the fan speed.
-     *   4. Responds with "OK" if successful or an error message if something goes wrong.
-     */
-    server.Post("/temp", [&pid, &lastTime](const httplib::Request &req, httplib::Response &res)
-                {
-        try {
-            auto json = nlohmann::json::parse(req.body);
-            float temperature{json.at("temperature").get<float>()}; // Explicitly parse as float
-
-            float dt{static_cast<float>(timer_util::secondsSince(lastTime))}; // Convert elapsed time to float
-            lastTime = std::chrono::steady_clock::now();
-
-            // Compute the PID output
-            float pidOutput{pid.compute(temperature, dt)};
-
-            // Convert PID output (0–100%) to duty cycle in nanoseconds
-            uint32_t dutyNs{static_cast<uint32_t>((pidOutput / 100.0f) * kPwmPeriod)};
-            pwm::setDutyCycle(dutyNs);
-
-            fmt::print("Received Temp: {:.2f} °C | PID Out: {:.2f} | Fan Duty: {:.0f}%\n",
-                       temperature, pidOutput, pidOutput);
-
-            res.set_content("OK", "text/plain");
-        } catch (const std::exception& e) {
-            res.status = 400;
-            res.set_content(fmt::format("Error: {}", e.what()), "text/plain");
-        } });
-
-    fmt::print("HTTP Server running on port 8000...\n");
-    server.listen("0.0.0.0", 8000);
+    // Start the server
+    server_util::startServer(pid, kPwmPeriod);
 
     // Cleanup in case the server stops unexpectedly
     pwm::setDutyCycle(0);

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fan Control Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+        text-align: center;
+      }
+      #chart-container {
+        width: 80%;
+        margin: auto;
+      }
+      input[type="number"] {
+        padding: 10px;
+        font-size: 16px;
+        margin: 10px;
+      }
+      button {
+        padding: 10px 20px;
+        font-size: 16px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Fan Control Dashboard</h1>
+    <p>Set the target temperature (°C):</p>
+    <input type="number" id="setpoint" value="24" step="0.1" />
+    <button onclick="updateSetpoint()">Update Setpoint</button>
+    <p id="status"></p>
+    <div id="chart-container">
+      <canvas id="temperatureChart"></canvas>
+    </div>
+
+    <script>
+      const ctx = document.getElementById("temperatureChart").getContext("2d");
+      const temperatureChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: "Temperature (°C)",
+              data: [],
+              borderColor: "blue",
+              fill: false,
+            },
+            {
+              label: "Setpoint (°C)",
+              data: [],
+              borderColor: "red",
+              borderDash: [5, 5],
+              fill: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: {
+              title: { display: true, text: "Time" },
+            },
+            y: {
+              title: { display: true, text: "Temperature (°C)" },
+            },
+          },
+        },
+      });
+
+      let currentSetpoint = 24; // Default setpoint value
+
+      function updateSetpoint() {
+        const setpoint = parseFloat(document.getElementById("setpoint").value);
+        fetch("/setpoint", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ setpoint }),
+        })
+          .then((response) => response.text())
+          .then((data) => {
+            document.getElementById("status").innerText = data;
+            currentSetpoint = setpoint; // Update the current setpoint
+            updateSetpointLine(); // Update the setpoint line on the graph
+          })
+          .catch((error) => {
+            document.getElementById("status").innerText = `Error: ${error}`;
+          });
+      }
+
+      function updateSetpointLine() {
+        // Update the setpoint dataset to be a horizontal line
+        const labels = temperatureChart.data.labels;
+        temperatureChart.data.datasets[1].data = labels.map(
+          () => currentSetpoint
+        );
+        temperatureChart.update();
+      }
+
+      function fetchTemperatureData() {
+        fetch("/latest-temp")
+          .then((response) => response.json())
+          .then((data) => {
+            const temperature = data.temperature;
+            const currentTime = new Date().toLocaleTimeString();
+
+            // Add the new temperature and time to the chart
+            temperatureChart.data.labels.push(currentTime);
+            temperatureChart.data.datasets[0].data.push(temperature);
+
+            // Keep the setpoint line consistent across the graph
+            temperatureChart.data.datasets[1].data.push(currentSetpoint);
+
+            // Limit the number of points on the graph to avoid overcrowding
+            if (temperatureChart.data.labels.length > 20) {
+              temperatureChart.data.labels.shift();
+              temperatureChart.data.datasets[0].data.shift();
+              temperatureChart.data.datasets[1].data.shift();
+            }
+
+            temperatureChart.update();
+          })
+          .catch((error) => {
+            console.error("Error fetching temperature data:", error);
+          });
+      }
+
+      setInterval(fetchTemperatureData, 2000); // Fetch data every 2 seconds
+    </script>
+  </body>
+</html>

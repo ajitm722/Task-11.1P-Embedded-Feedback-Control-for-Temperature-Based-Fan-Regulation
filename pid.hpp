@@ -2,6 +2,7 @@
 
 #include <algorithm> // for std::clamp
 #include <cstdint>   // for fixed-size types like uint32_t
+#include <cmath>     // for std::abs
 
 /**
  * @brief A generic, header-only PID controller.
@@ -54,10 +55,12 @@ public:
      * @brief Performs a PID computation step.
      *
      * - Calculates the error as the difference between the input and the setpoint.
+     * - The proportional term reacts to the current error.
      * - The integral term accumulates the error over time to address persistent errors.
      * - The derivative term reacts to how quickly the error is changing.
      * - The output is clamped (restricted) between `minOutput` and `maxOutput` to ensure it stays within bounds.
      * - Anti-windup prevents the integral term from growing when the output is already at its limit.
+     * - Introduces a deadband around the setpoint to force output to 0 when the error is small.
      *
      * @param input Current process value (e.g., temperature in °C)
      * @param dt Time delta since the last update (in seconds)
@@ -68,14 +71,32 @@ public:
         // Calculate the difference between the current value and the target value
         const float error{input - setpoint};
 
-        // Update the integral term by adding the error over time
+        // Introduce a deadband around the setpoint
+        constexpr float deadband = 0.05f; // Adjust this value as needed
+        if (std::abs(error) <= deadband)
+        {
+            return 0.0f; // Force output to 0 within the deadband
+        }
+
+        // Proportional term: Reacts to the current error
+        const float proportional = Kp * error;
+
+        // Integral term: Accumulates the error over time to address persistent errors
         float newIntegral{integral + error * dt};
 
-        // Calculate the rate of change of the error (derivative term)
-        const float derivative{(dt > 0) ? (error - prevError) / dt : 0.0f};
+        // Clamp the integral term to prevent windup
+        constexpr float integralClamp = 50.0f; // Adjust this value as needed
+        newIntegral = std::clamp(newIntegral, -integralClamp, integralClamp);
+
+        // Derivative term: Reacts to the rate of change of the error
+        const float rawDerivative = (dt > 0) ? (error - prevError) / dt : 0.0f;
+
+        // Clamp the derivative term to prevent spikes
+        constexpr float derivativeClamp = 10.0f; // Adjust this value as needed
+        const float derivative = std::clamp(rawDerivative, -derivativeClamp, derivativeClamp) * Kd;
 
         // Compute the PID output using the proportional, integral, and derivative terms
-        const float output{Kp * error + Ki * newIntegral + Kd * derivative};
+        const float output = proportional + Ki * newIntegral + derivative;
 
         // If the output is within the allowed range, update the integral term
         if (output >= minOutput && output <= maxOutput)
