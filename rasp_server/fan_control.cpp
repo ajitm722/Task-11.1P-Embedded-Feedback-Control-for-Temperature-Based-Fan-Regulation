@@ -20,6 +20,9 @@ namespace pwm
     constexpr std::string_view kPeriodPath{"/sys/class/pwm/pwmchip0/pwm0/period"};   // Path to set PWM period
     constexpr std::string_view kDutyPath{"/sys/class/pwm/pwmchip0/pwm0/duty_cycle"}; // Path to set duty cycle
 
+    constexpr uint32_t kDefaultPeriodNs{40'000}; // Default PWM period in nanoseconds (25 kHz)
+    constexpr float kPwmPeriod{40'000.0f};       // PWM period as float for calculations
+
     /**
      * @brief Writes a value to a file at the specified path.
      *
@@ -108,7 +111,7 @@ namespace pwm
      * @brief Sets up the PWM channel with default settings.
      *
      * - Exports the PWM channel.
-     * - Sets the period to 40000 ns (25 kHz).
+     * - Sets the period to the default value.
      * - Sets the duty cycle to 0 (0% duty).
      * - Enables the PWM output.
      */
@@ -116,7 +119,7 @@ namespace pwm
     {
         exportChannel();
         std::this_thread::sleep_for(std::chrono::milliseconds{100}); // Ensure pwm0 is ready
-        setPeriod(40000);                                            // 25kHz
+        setPeriod(kDefaultPeriodNs);                                 // Use default period
         setDutyCycle(0);                                             // Start with 0% duty
         enable(true);
     }
@@ -186,7 +189,6 @@ namespace timer_util
 // Namespace for server utilities
 namespace server_util
 {
-    float latestTemperature = 0.0f; // Store the most recent temperature value
 
     /**
      * @brief Starts the HTTP server to handle requests.
@@ -238,6 +240,8 @@ namespace server_util
                 res.set_content(fmt::format("Error: {}", e.what()), "text/plain");
             } });
 
+        static float latestTemperature{0.0f}; // Store the most recent temperature value
+
         // Endpoint to handle temperature data and compute PID output
         server.Post("/temp", [&pid, &lastTime, kPwmPeriod](const httplib::Request &req, httplib::Response &res)
                     {
@@ -284,7 +288,6 @@ int main()
     // Register signal handlers for cleanup
     signal_util::registerSignalHandlers();
 
-    constexpr float kPwmPeriod{40000.0f}; // PWM period in nanoseconds (25 kHz) as float
     pwm::setup();
 
     // PID initialized with Kp, Ki, Kd and output clamp [0, 100]
@@ -292,7 +295,7 @@ int main()
     pid.setSetpoint(24.0f);                  // Default target temperature in Celsius
 
     // Start the server
-    server_util::startServer(pid, kPwmPeriod);
+    server_util::startServer(pid, pwm::kPwmPeriod);
 
     // Cleanup in case the server stops unexpectedly
     cleanup_util::performCleanup();

@@ -35,10 +35,10 @@ public:
      * @brief Sets the target value the PID should drive toward.
      *
      * For example, for a fan cooling system, this could be 26.0°C.
-     *
+     * the function can be updated to validate the setpoint value
      * @param sp Desired setpoint
      */
-    constexpr inline void setSetpoint(float sp) noexcept
+    constexpr inline void setSetpoint(const float sp) noexcept
     {
         setpoint = sp;
     }
