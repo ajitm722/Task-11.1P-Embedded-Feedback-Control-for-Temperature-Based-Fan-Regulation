@@ -126,16 +126,33 @@ namespace pwm
 namespace cleanup_util
 {
     /**
-     * @brief Signal handler to clean up and stop the fan.
+     * @brief Performs cleanup tasks such as stopping the fan and simulating fallback.
+     *
+     * This function can be called directly or by signal handlers to ensure proper cleanup.
+     */
+    void performCleanup()
+    {
+        fmt::print("\nStopping fan and cleaning up...\n");
+        pwm::setDutyCycle(0); // Set duty cycle to 0% to stop the fan
+        pwm::enable(false);   // Disable the PWM output
+
+        // Simulate fallback to manufacturer default cooling mechanism
+        fmt::print("Simulating fallback: Fan set to default 50% duty cycle (manufacturer AC cooling).\n");
+    }
+}
+
+// Namespace for signal handling utilities
+namespace signal_util
+{
+    /**
+     * @brief Signal handler to invoke cleanup logic.
      *
      * This function is called when the program receives a termination signal (e.g., SIGINT, SIGTERM, etc.).
      */
     void handleSignal(int signal)
     {
-        fmt::print("\nStopping fan and cleaning up...\n");
-        pwm::setDutyCycle(0); // Set duty cycle to 0% to stop the fan
-        pwm::enable(false);   // Disable the PWM output
-        std::exit(0);         // Exit the program
+        cleanup_util::performCleanup(); // Call cleanup logic
+        std::exit(0);                   // Exit the program
     }
 
     /**
@@ -265,7 +282,7 @@ namespace server_util
 int main()
 {
     // Register signal handlers for cleanup
-    cleanup_util::registerSignalHandlers();
+    signal_util::registerSignalHandlers();
 
     constexpr float kPwmPeriod{40000.0f}; // PWM period in nanoseconds (25 kHz) as float
     pwm::setup();
@@ -278,6 +295,5 @@ int main()
     server_util::startServer(pid, kPwmPeriod);
 
     // Cleanup in case the server stops unexpectedly
-    pwm::setDutyCycle(0);
-    pwm::enable(false);
+    cleanup_util::performCleanup();
 }
