@@ -197,6 +197,7 @@ namespace server_util
      * - Handles `/setpoint` POST requests to update the PID setpoint.
      * - Handles `/temp` POST requests to process temperature data.
      * - Provides `/latest-temp` endpoint to serve the most recent temperature value.
+     * - Handles `/mode` POST requests to switch between modes.
      *
      * @param pid Reference to the PID controller.
      * @param kPwmPeriod PWM period in nanoseconds.
@@ -227,7 +228,7 @@ namespace server_util
                     {
             try
             {
-                auto json = nlohmann::json::parse(req.body);
+                auto json{nlohmann::json::parse(req.body)};
                 float newSetpoint{json.at("setpoint").get<float>()}; // Parse new setpoint
                 pid.setSetpoint(newSetpoint);
 
@@ -247,7 +248,7 @@ namespace server_util
                     {
             try
             {
-                auto json = nlohmann::json::parse(req.body);
+                auto json{nlohmann::json::parse(req.body)};
                 float temperature{json.at("temperature").get<float>()}; // Explicitly parse as float
 
                 float dt{static_cast<float>(timer_util::secondsSince(lastTime))}; // Convert elapsed time to float
@@ -278,6 +279,40 @@ namespace server_util
         server.Get("/latest-temp", [](const httplib::Request &, httplib::Response &res)
                    { res.set_content(fmt::format("{{\"temperature\": {:.2f}}}", latestTemperature), "application/json"); });
 
+        // Endpoint to switch between modes
+        server.Post("/mode", [&pid](const httplib::Request &req, httplib::Response &res)
+                    {
+            try
+            {
+                auto json{nlohmann::json::parse(req.body)};
+                std::string mode{json.at("mode").get<std::string>()};
+
+                if (mode == "energy")
+                {
+                    pid = PID{2.0f, 0.1f, 0.5f, 0.0f, 100.0f}; // Energy-saving mode
+                    pid.setSetpoint(24.0f); // Keep the same setpoint
+                    fmt::print("Switched to Energy Saving Mode\n");
+                    res.set_content("Switched to Energy Saving Mode.", "text/plain");
+                }
+                else if (mode == "performance")
+                {
+                    pid = PID{4.0f, 0.3f, 0.8f, 0.0f, 100.0f}; // Best performance mode
+                    pid.setSetpoint(24.0f); // Keep the same setpoint
+                    fmt::print("Switched to Best Performance Mode\n");
+                    res.set_content("Switched to Best Performance Mode.", "text/plain");
+                }
+                else
+                {
+                    res.status = 400;
+                    res.set_content("Invalid mode.", "text/plain");
+                }
+            }
+            catch (const std::exception &e)
+            {
+                res.status = 400;
+                res.set_content(fmt::format("Error: {}", e.what()), "text/plain");
+            } });
+
         fmt::print("HTTP Server running on port 8000...\n");
         server.listen("0.0.0.0", 8000);
     }
@@ -291,7 +326,7 @@ int main()
     pwm::setup();
 
     // PID initialized with Kp, Ki, Kd and output clamp [0, 100]
-    PID pid{4.0f, 0.3f, 0.8f, 0.0f, 100.0f}; // Adjusted gains for better response
+    PID pid{3.0f, 0.2f, 0.6f, 0.0f, 100.0f}; // Balanced mode for default response
     pid.setSetpoint(24.0f);                  // Default target temperature in Celsius
 
     // Start the server

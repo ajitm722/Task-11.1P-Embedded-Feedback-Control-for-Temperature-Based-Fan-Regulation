@@ -112,7 +112,7 @@ The Raspberry Pi adjusts this in real time based on **PID output**.
 
 ---
 
-THe implementation includes:
+The implementation includes:
 
 * Setpoint: Desired temperature
 * Input: Current temperature
@@ -222,3 +222,39 @@ Ideal for:
 * Laboratories or indoor horticulture setups
 
 ---
+
+## New Feature: Predefined Modes for Easy Control
+
+The system now includes **three predefined modes** for controlling the fan's behavior. These modes allow users to optimize the system for their specific needs without requiring in-depth technical knowledge of PID tuning.
+
+### Available Modes
+
+1. **Balanced Mode (Default)**:
+
+   * Provides a middle ground between energy efficiency and performance.
+   * Ideal for environments where moderate cooling is sufficient, such as small cafes, offices, or home setups.
+   * Ensures stable temperature control with minimal fan speed fluctuations.
+
+2. **Energy Saving Mode**:
+   * Prioritizes energy efficiency by reducing fan speed and responsiveness.
+   * Suitable for scenarios where cooling demand is low, such as during off peak hours or in energy conscious environments.
+   * Helps reduce power consumption while maintaining acceptable temperature levels.
+
+3. **Performance Mode**:
+   * Maximizes responsiveness and cooling performance.
+   * Designed for high demand scenarios, such as peak hours in cafes, cold storage, or laboratories.
+   * Ensures rapid temperature stabilization at the cost of higher energy usage.
+
+### How It Works
+
+* Users can switch between these modes using the web dashboard with a single click.
+* The system automatically adjusts the PID controller's parameters (Kp, Ki, Kd) based on the selected mode.
+* No technical knowledge of PID tuning is required—just select the mode that best fits your needs.
+
+### Reference Output
+
+Below is a screenshot showing the system operating in Balanced Mode, maintaining a stable temperature with minimal fan speed adjustments:
+
+![Balanced Mode Output](assets/energy%20saving%20and%20best%20performance%20mode.png)
+
+These predefined modes make the system versatile and user-friendly, catering to a wide range of use cases without requiring manual configuration.

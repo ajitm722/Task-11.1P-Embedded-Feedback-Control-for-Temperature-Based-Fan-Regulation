@@ -35,6 +35,10 @@
     <input type="number" id="setpoint" value="24" step="0.1" />
     <!-- Button to update the setpoint -->
     <button onclick="updateSetpoint()">Update Setpoint</button>
+    <p>Choose a mode:</p>
+    <!-- Buttons to switch between modes -->
+    <button onclick="setMode('energy')">Energy Saving Mode</button>
+    <button onclick="setMode('performance')">Best Performance Mode</button>
     <p id="status"></p>
     <div id="chart-container">
       <!-- Canvas element for the temperature chart -->
@@ -133,6 +137,22 @@
           })
           .catch((error) => {
             console.error("Error fetching temperature data:", error); // Log errors
+          });
+      }
+
+      // Function to set the PID mode on the server
+      function setMode(mode) {
+        fetch("/mode", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode }),
+        })
+          .then((response) => response.text())
+          .then((data) => {
+            document.getElementById("status").innerText = data; // Display server response
+          })
+          .catch((error) => {
+            document.getElementById("status").innerText = `Error: ${error}`; // Display error message
           });
       }
 
